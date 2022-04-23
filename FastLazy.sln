@@ -1,0 +1,50 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.2.32414.248
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{BE71197F-A2B5-4C76-BED1-C8971D18AE90}"
+	ProjectSection(SolutionItems) = preProject
+		src\Directory.Build.props = src\Directory.Build.props
+	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FastLazy", "src\FastLazy\FastLazy.csproj", "{ABA612E2-0813-4116-B9DC-4566DD1CF861}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{DA7BBA71-8F4C-4D94-A10C-DBB9BA79C553}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FastLazy.Tests", "test\FastLazy.Tests\FastLazy.Tests.csproj", "{40AF2B0E-EE6B-4474-B1CC-E4A9AF5ECA87}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_files", "_files", "{41092EA6-EC53-4E44-B71E-592E72F857A2}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+		.gitignore = .gitignore
+		Directory.Build.props = Directory.Build.props
+		global.json = global.json
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{ABA612E2-0813-4116-B9DC-4566DD1CF861}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ABA612E2-0813-4116-B9DC-4566DD1CF861}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ABA612E2-0813-4116-B9DC-4566DD1CF861}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ABA612E2-0813-4116-B9DC-4566DD1CF861}.Release|Any CPU.Build.0 = Release|Any CPU
+		{40AF2B0E-EE6B-4474-B1CC-E4A9AF5ECA87}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{40AF2B0E-EE6B-4474-B1CC-E4A9AF5ECA87}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{40AF2B0E-EE6B-4474-B1CC-E4A9AF5ECA87}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{40AF2B0E-EE6B-4474-B1CC-E4A9AF5ECA87}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{ABA612E2-0813-4116-B9DC-4566DD1CF861} = {BE71197F-A2B5-4C76-BED1-C8971D18AE90}
+		{40AF2B0E-EE6B-4474-B1CC-E4A9AF5ECA87} = {DA7BBA71-8F4C-4D94-A10C-DBB9BA79C553}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {81A7EF20-CED6-4543-A514-E311555B849E}
+	EndGlobalSection
+EndGlobal
