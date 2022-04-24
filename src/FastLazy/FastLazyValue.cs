@@ -22,8 +22,10 @@ public struct FastLazyValue<T> where T : struct
     /// </summary>
     public readonly bool IsValueCreated => _state == INITD;
 
+    unsafe private ref readonly T _valueRef => ref Unsafe.AsRef<T>(Unsafe.AsPointer(ref _value));
+
     /// <summary>
-    /// Returns the value from the generator function, initializing it if needed.
+    /// Returns the value from the generator function, or the cached value.
     /// </summary>
     public T Value
     {
@@ -38,21 +40,29 @@ public struct FastLazyValue<T> where T : struct
     }
 
     /// <summary>
-    /// Returns the string representation of the underlying T if it is initialized.
+    /// Returns the value from the generator function, or the cached value.
+    /// This property returns by `ref readonly`, i.e. a pointer that cant be reassigned.
+    /// This is currently not allowed by the language, and so you are responsible for
+    /// avoiding use-after-free bugs - FastLazyValue may be deallocated while you hold on to the ref.
     /// </summary>
-    /// <returns></returns>
-    public override string? ToString() => _state == INITD ? _value.ToString() : null;
+    public ref readonly T ValueRef
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get
+        {
+            if (_state != INITD)
+                return ref ValueRefSlow;
+
+            return ref _valueRef;
+        }
+    }
 
     private T ValueSlow
     {
         [MethodImpl(MethodImplOptions.NoInlining)]
         get
         {
-            var prevState = global::System.Threading.Interlocked.CompareExchange(
-                ref _state,
-                INITING,
-                UNINIT
-            );
+            var prevState = Interlocked.CompareExchange(ref _state, INITING, UNINIT);
             switch (prevState)
             {
                 case INITD:
@@ -60,17 +70,44 @@ public struct FastLazyValue<T> where T : struct
                     return _value;
                 case INITING:
                     // Wait for someone else to complete
-                    var spinWait = default(global::System.Threading.SpinWait);
-                    while (global::System.Threading.Interlocked.Read(ref _state) < INITD)
+                    var spinWait = default(SpinWait);
+                    while (Interlocked.Read(ref _state) < INITD)
                         spinWait.SpinOnce();
                     return _value;
                 case UNINIT:
                     _value = _generator();
-                    global::System.Threading.Interlocked.Exchange(ref _state, INITD);
+                    Interlocked.Exchange(ref _state, INITD);
                     return _value;
             }
 
             return _value;
+        }
+    }
+
+    private ref readonly T ValueRefSlow
+    {
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        get
+        {
+            var prevState = Interlocked.CompareExchange(ref _state, INITING, UNINIT);
+            switch (prevState)
+            {
+                case INITD:
+                    // Someone has already completed init
+                    return ref _valueRef;
+                case INITING:
+                    // Wait for someone else to complete
+                    var spinWait = default(SpinWait);
+                    while (Interlocked.Read(ref _state) < INITD)
+                        spinWait.SpinOnce();
+                    return ref _valueRef;
+                case UNINIT:
+                    _value = _generator();
+                    Interlocked.Exchange(ref _state, INITD);
+                    return ref _valueRef;
+            }
+
+            return ref _valueRef;
         }
     }
 
@@ -84,4 +121,10 @@ public struct FastLazyValue<T> where T : struct
         _state = UNINIT;
         _value = default;
     }
+
+    /// <summary>
+    /// Returns the string representation of the underlying T if it is initialized.
+    /// </summary>
+    /// <returns></returns>
+    public override readonly string? ToString() => _state == INITD ? _value.ToString() : null;
 }
