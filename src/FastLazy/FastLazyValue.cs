@@ -9,9 +9,11 @@ namespace FastLazy;
 /// <typeparam name="T">struct type</typeparam>
 public struct FastLazyValue<T> where T : struct
 {
-    private const long UNINIT = 0;
-    private const long INITING = 1;
-    private const long INITD = 2;
+    internal const long INVALID = -1;
+    internal const long UNITIALIZED = 0;
+    internal const long INITIALIZING = 1;
+    internal const long INITIALIZED = 2;
+    internal const long CACHED = 3;
 
     private readonly Func<T> _generator;
     private long _state;
@@ -20,9 +22,16 @@ public struct FastLazyValue<T> where T : struct
     /// <summary>
     /// Wether or not the value of T has been initialized
     /// </summary>
-    public readonly bool IsValueCreated => _state == INITD;
+    public readonly bool IsValueCreated => _state == INITIALIZED;
 
     unsafe private ref readonly T _valueRef => ref Unsafe.AsRef<T>(Unsafe.AsPointer(ref _value));
+
+    unsafe private ref T _valueRefAndAddress(out long address)
+    {
+        var ptr = Unsafe.AsPointer(ref _value);
+        address = (long)ptr;
+        return ref Unsafe.AsRef<T>(ptr);
+    }
 
     /// <summary>
     /// Returns the value from the generator function, or the cached value.
@@ -32,9 +41,19 @@ public struct FastLazyValue<T> where T : struct
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
         {
-            if (_state != INITD)
+            if (_state != INITIALIZED)
                 return ValueSlow;
 
+            return _value;
+        }
+    }
+
+    private T ValueSlow
+    {
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        get
+        {
+            TryInit(out _);
             return _value;
         }
     }
@@ -50,37 +69,10 @@ public struct FastLazyValue<T> where T : struct
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
         {
-            if (_state != INITD)
+            if (_state != INITIALIZED)
                 return ref ValueRefSlow;
 
             return ref _valueRef;
-        }
-    }
-
-    private T ValueSlow
-    {
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        get
-        {
-            var prevState = Interlocked.CompareExchange(ref _state, INITING, UNINIT);
-            switch (prevState)
-            {
-                case INITD:
-                    // Someone has already completed init
-                    return _value;
-                case INITING:
-                    // Wait for someone else to complete
-                    var spinWait = default(SpinWait);
-                    while (Interlocked.Read(ref _state) < INITD)
-                        spinWait.SpinOnce();
-                    return _value;
-                case UNINIT:
-                    _value = _generator();
-                    Interlocked.Exchange(ref _state, INITD);
-                    return _value;
-            }
-
-            return _value;
         }
     }
 
@@ -89,25 +81,47 @@ public struct FastLazyValue<T> where T : struct
         [MethodImpl(MethodImplOptions.NoInlining)]
         get
         {
-            var prevState = Interlocked.CompareExchange(ref _state, INITING, UNINIT);
-            switch (prevState)
-            {
-                case INITD:
-                    // Someone has already completed init
-                    return ref _valueRef;
-                case INITING:
-                    // Wait for someone else to complete
-                    var spinWait = default(SpinWait);
-                    while (Interlocked.Read(ref _state) < INITD)
-                        spinWait.SpinOnce();
-                    return ref _valueRef;
-                case UNINIT:
-                    _value = _generator();
-                    Interlocked.Exchange(ref _state, INITD);
-                    return ref _valueRef;
-            }
-
+            TryInit(out _);
             return ref _valueRef;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ref T GetValueInstrumented(out long previousState, out long address)
+    {
+        if (_state != INITIALIZED)
+            return ref GetValueInstrumentedSlow(out previousState, out address);
+
+        previousState = CACHED;
+        return ref _valueRefAndAddress(out address);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private ref T GetValueInstrumentedSlow(out long previousState, out long address)
+    {
+        TryInit(out previousState);
+        return ref _valueRefAndAddress(out address);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void TryInit(out long previousState)
+    {
+        previousState = Interlocked.CompareExchange(ref _state, INITIALIZING, UNITIALIZED);
+        switch (previousState)
+        {
+            case INITIALIZED:
+                // Someone has already completed init
+                return;
+            case INITIALIZING:
+                // Wait for someone else to complete
+                var spinWait = default(SpinWait);
+                while (Interlocked.Read(ref _state) < INITIALIZED)
+                    spinWait.SpinOnce();
+                return;
+            case UNITIALIZED:
+                _value = _generator();
+                Interlocked.Exchange(ref _state, INITIALIZED);
+                return;
         }
     }
 
@@ -118,7 +132,7 @@ public struct FastLazyValue<T> where T : struct
     public FastLazyValue(Func<T> generator)
     {
         _generator = generator;
-        _state = UNINIT;
+        _state = UNITIALIZED;
         _value = default;
     }
 
@@ -126,5 +140,5 @@ public struct FastLazyValue<T> where T : struct
     /// Returns the string representation of the underlying T if it is initialized.
     /// </summary>
     /// <returns></returns>
-    public override readonly string? ToString() => _state == INITD ? _value.ToString() : null;
+    public override readonly string? ToString() => _state == INITIALIZED ? _value.ToString() : null;
 }
