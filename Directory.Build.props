@@ -8,7 +8,6 @@
     <AnalysisLevel>latest</AnalysisLevel>
     <Features>strict</Features>
     <ImplicitUsings>enable</ImplicitUsings>
-
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageProjectUrl>https://github.com/martinothamar/FastLazy</PackageProjectUrl>
@@ -18,9 +17,8 @@
     <Authors>Martin Othamar</Authors>
     <Copyright>Copyright 2022 Martin Othamar</Copyright>
   </PropertyGroup>
-
   <ItemGroup>
-    <PackageReference Include="CSharpier.MsBuild" Version="0.16.0">
+    <PackageReference Include="CSharpier.MsBuild" Version="1.0.1">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>

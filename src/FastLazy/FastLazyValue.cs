@@ -7,7 +7,9 @@ namespace FastLazy;
 /// Lock-free and threadsafe code using atomics.
 /// </summary>
 /// <typeparam name="T">struct type</typeparam>
-public struct FastLazyValue<T> where T : struct
+/// <typeparam name="TArg">Argument type</typeparam>
+public struct FastLazyValue<T, TArg>
+    where T : struct
 {
     internal const long INVALID = -1;
     internal const long UNITIALIZED = 0;
@@ -15,18 +17,19 @@ public struct FastLazyValue<T> where T : struct
     internal const long INITIALIZED = 2;
     internal const long CACHED = 3;
 
-    private readonly Func<T> _generator;
-    private long _state;
-    private T _value;
+    internal readonly Func<TArg, T> _generator;
+    internal long _state;
+    internal T _value;
+    internal TArg _arg;
+
+    private unsafe ref T _valueRef => ref Unsafe.AsRef<T>(Unsafe.AsPointer(ref _value));
 
     /// <summary>
     /// Wether or not the value of T has been initialized
     /// </summary>
     public readonly bool IsValueCreated => _state == INITIALIZED;
 
-    unsafe private ref readonly T _valueRef => ref Unsafe.AsRef<T>(Unsafe.AsPointer(ref _value));
-
-    unsafe private ref T _valueRefAndAddress(out long address)
+    private unsafe ref T _valueRefAndAddress(out long address)
     {
         var ptr = Unsafe.AsPointer(ref _value);
         address = (long)ptr;
@@ -48,7 +51,7 @@ public struct FastLazyValue<T> where T : struct
         }
     }
 
-    private T ValueSlow
+    internal T ValueSlow
     {
         [MethodImpl(MethodImplOptions.NoInlining)]
         get
@@ -76,7 +79,7 @@ public struct FastLazyValue<T> where T : struct
         }
     }
 
-    private ref readonly T ValueRefSlow
+    internal ref T ValueRefSlow
     {
         [MethodImpl(MethodImplOptions.NoInlining)]
         get
@@ -97,14 +100,14 @@ public struct FastLazyValue<T> where T : struct
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private ref T GetValueInstrumentedSlow(out long previousState, out long address)
+    internal ref T GetValueInstrumentedSlow(out long previousState, out long address)
     {
         TryInit(out previousState);
         return ref _valueRefAndAddress(out address);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void TryInit(out long previousState)
+    private unsafe void TryInit(out long previousState)
     {
         previousState = Interlocked.CompareExchange(ref _state, INITIALIZING, UNITIALIZED);
         switch (previousState)
@@ -119,7 +122,7 @@ public struct FastLazyValue<T> where T : struct
                     spinWait.SpinOnce();
                 return;
             case UNITIALIZED:
-                _value = _generator();
+                _value = _generator(_arg);
                 Interlocked.Exchange(ref _state, INITIALIZED);
                 return;
         }
@@ -129,11 +132,13 @@ public struct FastLazyValue<T> where T : struct
     /// Constructs the lazy instance.
     /// </summary>
     /// <param name="generator">Generator function for the instance of T</param>
-    public FastLazyValue(Func<T> generator)
+    /// <param name="arg">Argument to the generator function</param>
+    public FastLazyValue(Func<TArg, T> generator, TArg arg)
     {
         _generator = generator;
         _state = UNITIALIZED;
         _value = default;
+        _arg = arg;
     }
 
     /// <summary>

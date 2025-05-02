@@ -1,61 +1,100 @@
 ﻿using System.Runtime.CompilerServices;
+using Xunit;
 
 namespace FastLazy.Tests;
 
-public sealed class FastLazyValueTests
+public class FastLazyValueTests
 {
-    public FastLazyValue<long> Should_Initialize()
+    [Fact]
+    public void Should_Initialize()
     {
-        return new FastLazyValue<long>(() => 1);
+        _ = new FastLazyValue<long, Guid>(_ => 1, default);
     }
 
+    [Fact]
     public void IsValueCreated_Should_Return_Correct_Value()
     {
-        var lazy = new FastLazyValue<long>(() => 1);
-        lazy.IsValueCreated.Should().BeFalse();
+        var lazy = new FastLazyValue<long, Guid>(_ => 1, default);
+        Assert.False(lazy.IsValueCreated);
 
         _ = lazy.Value;
 
-        lazy.IsValueCreated.Should().BeTrue();
+        Assert.True(lazy.IsValueCreated);
     }
 
+    [Fact]
     public void Value_Should_Return_Correct_Value()
     {
-        var lazy = new FastLazyValue<long>(() => 1);
+        var lazy = new FastLazyValue<long, Guid>(_ => 1, default);
 
         var value = lazy.Value;
 
-        value.Should().Be(1);
+        Assert.Equal(1, value);
     }
 
+    [Fact]
+    public void ToString_Should_Return_Correct_Value()
+    {
+        var lazy = new FastLazyValue<long, Guid>(_ => 1, default);
+
+        var str = lazy.ToString();
+        Assert.Null(str);
+
+        _ = lazy.Value;
+        str = lazy.ToString();
+
+        Assert.Equal("1", str);
+    }
+
+    [Fact]
+    public void Passes_Arg()
+    {
+        var expectedArg = Guid.NewGuid();
+        var lazy = new FastLazyValue<long, Guid>(
+            arg =>
+            {
+                Assert.Equal(expectedArg, arg);
+                return 1;
+            },
+            expectedArg
+        );
+
+        var value = lazy.Value;
+
+        Assert.Equal(1, value);
+    }
+
+    [Fact]
     public void ValueRef_Should_Return_Correct_Value()
     {
-        var lazy = new FastLazyValue<long>(() => 1);
+        var lazy = new FastLazyValue<long, Guid>(_ => 1, default);
 
         ref readonly var value = ref lazy.ValueRef;
 
-        value.Should().Be(1);
+        Assert.Equal(1, value);
     }
 
-    unsafe public void ValueRef_Should_Be_Same_Reference()
+    [Fact]
+    public unsafe void ValueRef_Should_Be_Same_Reference()
     {
-        var lazy = new FastLazyValue<long>(() => 1);
+        var lazy = new FastLazyValue<long, Guid>(_ => 1, default);
 
         ref var value1 = ref Unsafe.AsRef(in lazy.ValueRef);
         ref var value2 = ref Unsafe.AsRef(in lazy.ValueRef);
 
-        Unsafe.AreSame(ref value1, ref value2).Should().BeTrue();
+        Assert.True(Unsafe.AreSame(ref value1, ref value2));
     }
 
     public sealed record SmokeTest
     {
-        public FastLazyValue<long> Lazy = new FastLazyValue<long>(() => 1);
+        public FastLazyValue<long, Guid> Lazy = new FastLazyValue<long, Guid>(_ => 1, default);
         public TaskCompletionSource Start = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
     };
 
-    unsafe public void Smoke_Test_Initialization()
+    [Fact]
+    public unsafe void Smoke_Test_Initialization()
     {
         var concurrency = Environment.ProcessorCount;
         var threads = new Task<(long Value, long Address, long PreviousState)>[concurrency];
@@ -76,8 +115,8 @@ public sealed class FastLazyValueTests
             fixed (byte* data = &Pin.GetRawObjectData(test))
             {
                 for (int i = 0; i < concurrency; i++)
-                    threads[i] = Task.Factory
-                        .StartNew(
+                    threads[i] = Task
+                        .Factory.StartNew(
                             s => Thread(s),
                             test,
                             default,
@@ -87,7 +126,9 @@ public sealed class FastLazyValueTests
                         .Unwrap();
 
                 test.Start.SetResult();
+#pragma warning disable xUnit1031 // Do not use blocking task operations in test method
                 var results = Task.WhenAll(threads).GetAwaiter().GetResult();
+#pragma warning restore xUnit1031 // Do not use blocking task operations in test method
                 // We need to pin the SmokeTest object to get stable results for value addresses.
                 // which means we have to use unsafe context, which means we cant use await.
 
@@ -107,22 +148,22 @@ public sealed class FastLazyValueTests
 
                 foreach (ref readonly var result in results)
                 {
-                    result.PreviousState.Should().NotBe(FastLazyValue<long>.INVALID);
-                    result.Value.Should().Be(1);
-                    result.Address.Should().Be(address);
+                    Assert.NotEqual(FastLazyValue<long, Guid>.INVALID, result.PreviousState);
+                    Assert.Equal(1, result.Value);
+                    Assert.Equal(address, result.Address);
 
                     switch (result.PreviousState)
                     {
-                        case FastLazyValue<long>.UNITIALIZED:
+                        case FastLazyValue<long, Guid>.UNITIALIZED:
                             wasUnitializedCount++;
                             break;
-                        case FastLazyValue<long>.INITIALIZING:
+                        case FastLazyValue<long, Guid>.INITIALIZING:
                             wasInitializingCount++;
                             break;
-                        case FastLazyValue<long>.INITIALIZED:
+                        case FastLazyValue<long, Guid>.INITIALIZED:
                             wasInitializedCount++;
                             break;
-                        case FastLazyValue<long>.CACHED:
+                        case FastLazyValue<long, Guid>.CACHED:
                             wasCachedCount++;
                             break;
                         default:
@@ -130,7 +171,7 @@ public sealed class FastLazyValueTests
                     }
                 }
 
-                wasUnitializedCount.Should().Be(1);
+                Assert.Equal(1, wasUnitializedCount);
             }
         }
 
